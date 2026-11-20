@@ -168,6 +168,10 @@ def rq_setreg(job, index, value):
     return struct.pack(">IBI", job, index, value & 0xFFFFFFFF)
 
 
+GRAB_PLANAR, GRAB_RGB, GRAB_LUT8 = range(3)   # LUT8: pen bytes of 8-bit RTG screens
+PIXFMT_LUT8 = 0                                 # cybergraphics pixel format
+
+
 def rq_grab(screen, x, y, w, h, fmt):
     return struct.pack(">IHHHHB", screen, x, y, w, h, fmt)
 

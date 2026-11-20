@@ -323,7 +323,18 @@ class FakeAgent:
             j["pc"] = val
         return 0, b""
 
+    rtg_lut8 = False        # screen is 8-bit RTG instead of planar
+    lut8_supported = True   # agent knows grab format 2
+
     def rq_14(self, r):       # screens: one 32x4 lores, depth 2
+        if self.rtg_lut8:
+            out = struct.pack(">H", 1)
+            out += struct.pack(">IIHHhhHHIHHHHI", RAM + 0x8000, RAM + 0x8100, 32, 4, 0, 0, 8, 3, 0x50011000,
+                               32, 4, 32, 8, 0)
+            out += struct.pack(">8I", *[0] * 8)
+            out += struct.pack(">H", 4) + bytes([170, 170, 170, 0, 0, 0, 255, 255, 255, 102, 136, 187])
+            out += proto.pstr("Workbench Screen")
+            return 0, out
         out = struct.pack(">H", 1)
         out += struct.pack(">IIHHhhHHIHHHHI", RAM + 0x8000, RAM + 0x8100, 32, 4, 0, 0, 2, 2, 0x00000000,
                            4, 4, 32, 0, 0)
@@ -334,6 +345,13 @@ class FakeAgent:
 
     def rq_15(self, r):       # grab planar: plane 0 = 0xFF..., plane 1 = 0x0F...
         screen, x, y, w, h, fmt = r.u32(), r.u16(), r.u16(), r.u16(), r.u16(), r.u8()
+        if self.rtg_lut8:
+            if fmt == 2 and self.lut8_supported:
+                return 0, bytes((i % 4) for i in range(w)) * h
+            if fmt == 2:
+                return proto.ST_BAD_REQUEST, b""
+            if fmt == 1:        # Picasso96's RGB of a LUT8 screen: wrong colours
+                return 0, b"\x0a\xd2\x25" * w * h
         if fmt != 0:
             return proto.ST_UNSUPPORTED, b""
         rowbytes = (w + 15) // 16 * 2

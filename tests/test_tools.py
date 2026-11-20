@@ -182,6 +182,22 @@ class Inspect(Rig):
         self.assertEqual(row[4 * 3:5 * 3], b"\x00\x00\xff")  # index 3 = blue
         self.assertTrue(out["saved"].startswith("PI0:.tfmcp/screens/"))
 
+    def screenshot_row(self):
+        png = base64.b64decode(self.tools.screenshot(aspect=False)["_content"][0]["data"])
+        raw = zlib.decompressobj().decompress(png[png.index(b"IDAT") + 4:])
+        return raw[1:1 + 32 * 3]
+
+    def test_screenshot_rtg_lut8_uses_palette(self):
+        self.agent.rtg_lut8 = True
+        row = self.screenshot_row()
+        self.assertEqual(row[:3], b"\xaa\xaa\xaa")             # pen 0 = grey
+        self.assertEqual(row[3 * 3:4 * 3], bytes((102, 136, 187)))
+
+    def test_screenshot_rtg_lut8_old_agent_falls_back_to_rgb(self):
+        self.agent.rtg_lut8 = True
+        self.agent.lut8_supported = False
+        self.assertEqual(self.screenshot_row()[:3], b"\x0a\xd2\x25")
+
     def test_input(self):
         self.tools.send_keys(text="Hi", keys=["ramiga+m"], delay_ms=0)
         codes = [e[2] for e in self.agent.inputs]
