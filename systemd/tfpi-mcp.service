@@ -1,0 +1,17 @@
+[Unit]
+Description=tfpi-mcp bridge (Amiga agent tfdbgd over a314) and optional MCP over HTTP
+After=a314d.service network-online.target
+Wants=network-online.target
+
+[Service]
+User=##USER##
+Group=##GROUP##
+Environment=PYTHONPATH=/opt/tfpi-mcp/lib
+ExecStart=/usr/bin/python3 -m tfmcp serve
+RuntimeDirectory=tfpi-mcp
+RuntimeDirectoryMode=0750
+Restart=always
+RestartSec=2
+
+[Install]
+WantedBy=multi-user.target

@@ -1,0 +1,3 @@
+#!/bin/sh
+# tfpi-mcp: MCP server on stdio (default), or: serve | tools | call TOOL [JSON] | config ...
+PYTHONPATH=/opt/tfpi-mcp/lib exec python3 -m tfmcp "$@"
