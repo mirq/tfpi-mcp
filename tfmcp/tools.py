@@ -17,7 +17,9 @@ INSTRUCTIONS = """\
 Controls an Amiga 4000 (TF4060 accelerator, 68060) through the TF Pi mounted on it.
 
 Start with amiga_status. Most tools need the Amiga agent tfdbgd; if it isn't
-connected call agent_start (it is launched through A314shd).
+connected call agent_start (it is launched through A314shd). If A314shd isn't
+running either, ask the user to run once on the Amiga: Execute PI0:.tfmcp/Install
+(it starts A314shd at every boot, and the agent now).
 
 Typical loop: upload a program with files_write (it lands on PI0:, the Pi share
 the Amiga mounts), run it with amiga_run (output + return code; Ctrl-C after the
@@ -262,11 +264,28 @@ class Tools:
         if st and not st["a314d"]:
             hints.append("a314d isn't running: sudo systemctl start a314d")
         if st and st["a314d"] and not st["agent"]:
-            hints.append("call agent_start to launch tfdbgd on the Amiga")
+            if out.get("a314sh", "ok") == "ok":
+                hints.append("call agent_start to launch tfdbgd on the Amiga")
+            else:
+                hints.append("A314shd isn't running on the Amiga, so agent_start can't launch the agent. "
+                             "Once, on the Amiga: " + config.INSTALL_COMMAND + " (starts A314shd at every "
+                             "boot and the agent now)")
         if not sh:
             hints.append("the a314fs share (PI0:) isn't configured")
         out["hints"] = hints
         return out
+
+    def copy_amiga_files(self):
+        """Puts the agent, A314shd and the Install script in PI0:.tfmcp
+        (rewritten only when they differ). Returns the agent's local path."""
+        folder = share.work_dir()
+        for name in config.AMIGA_FILES:
+            source = config.AGENT_BINARY if name == "tfdbgd" else config.AGENT_BINARY.with_name(name)
+            data = source.read_bytes()
+            target = folder / name
+            if not target.exists() or target.read_bytes() != data:
+                share.write(share.amiga_path(target), data, executable=name != "Install")
+        return folder / "tfdbgd"
 
     def agent_start(self, readonly=False, wait=20):
         self.guard()
@@ -276,18 +295,15 @@ class Tools:
         if not st["a314d"]:
             raise ToolError("a314d is not running on the Pi")
         try:
-            target = share.work_dir() / "tfdbgd"
+            target = self.copy_amiga_files()
         except share.ShareError as error:
             raise ToolError(str(error)) from None
-        data = config.AGENT_BINARY.read_bytes()
-        if not target.exists() or target.read_bytes() != data:
-            share.write(share.amiga_path(target), data, executable=True)
         command = f"run >NIL: {share.amiga_path(target)}" + (" READONLY" if readonly else "")
         try:
             rc, text = a314sh.run(command, timeout=15)
         except a314sh.ShellError as error:
-            raise ToolError(f"couldn't launch the agent through A314shd: {error}. Start it on the Amiga "
-                            f"instead: {command}") from None
+            raise ToolError(f"couldn't launch the agent through A314shd: {error}. Or start just the "
+                            f"agent on the Amiga: {command}") from None
         deadline = time.time() + wait
         while time.time() < deadline:
             st = self.status()
@@ -701,8 +717,8 @@ class Tools:
             self.bridge.reboot()
         except AgentError:
             pass            # the reply never comes: the machine is resetting
-        return {"rebooting": True, "note": "tfdbgd won't be back until it is started again (agent_start), "
-                "unless it is in S:User-Startup"}
+        return {"rebooting": True, "note": "tfdbgd won't be back until it is started again (agent_start, "
+                "which needs A314shd: " + config.INSTALL_COMMAND + " sets that up once)"}
 
     # ---- debugging -------------------------------------------------------------------------------
 

@@ -112,6 +112,24 @@ class AgentBinary(unittest.TestCase):
         data = config.AGENT_BINARY.read_bytes()
         self.assertTrue(hunk.is_hunk(data))
 
+    @unittest.skipUnless(GCC.exists(), "no m68k-amigaos-gcc")
+    def test_committed_a314shd_matches_source(self):
+        with tempfile.TemporaryDirectory() as tmp:
+            work = Path(tmp) / "amiga" / "a314shd"
+            shutil.copytree(ROOT / "amiga" / "a314shd", work)
+            (Path(tmp) / "tfmcp" / "amiga").mkdir(parents=True)
+            subprocess.run(["make", "-s", f"PREFIX={GCC_PREFIX}"], cwd=work, check=True, capture_output=True)
+            self.assertTrue(filecmp.cmp(Path(tmp) / "tfmcp" / "amiga" / "A314shd",
+                                        config.AGENT_BINARY.with_name("A314shd"), shallow=False),
+                            "tfmcp/amiga/A314shd is stale: run make in amiga/a314shd")
+
+    def test_amiga_files_are_shipped(self):
+        self.assertTrue(hunk.is_hunk(config.AGENT_BINARY.with_name("A314shd").read_bytes()))
+        script = config.AGENT_BINARY.with_name("Install").read_text()
+        self.assertIn("PI0:.tfmcp/A314shd", script)
+        self.assertIn("S:User-Startup", script)
+        self.assertIn(config.INSTALL_COMMAND.split()[1], script)
+
 
 class Safety(unittest.TestCase):
     def test_never_touches_flash_tools(self):

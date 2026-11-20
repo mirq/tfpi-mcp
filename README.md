@@ -38,7 +38,8 @@ The installer:
 
 - puts the server in `/opt/tfpi-mcp`, with the `tfpi-mcp` command in `/usr/local/bin`
 - starts the `tfpi-mcp` service, which runs as the Pi user
-- copies the Amiga agent to `PI0:.tfmcp/tfdbgd`
+- copies the Amiga agent to `PI0:.tfmcp/tfdbgd`, with `A314shd` and the
+  `Install` script next to it
 - installs `binutils-m68k-linux-gnu` for the disassembler
 
 ## Connect your AI client
@@ -74,20 +75,34 @@ network.
 ## On the Amiga
 
 Most tools need the small agent `tfdbgd` running on the Amiga. The
-`agent_start` tool starts it through A314shd. You can also start it yourself:
+`agent_start` tool starts it through A314shd, a314's Amiga-side shell daemon.
+TF Pi doesn't install A314shd on the Amiga, so do this once, in a Shell on the
+Amiga:
+
+```
+Execute PI0:.tfmcp/Install
+```
+
+It copies `A314shd` to `C:`, adds `Run >NIL: C:A314shd` to `S:User-Startup`,
+and starts A314shd and the agent. After that, `agent_start` works after every
+boot. A314shd waits for the Pi, so the boot doesn't wait for PI0:.
+
+You can also start the agent yourself:
 
 ```
 run >NIL: PI0:.tfmcp/tfdbgd
 ```
 
-To have it start at boot, add that line to `S:User-Startup`, after PI0: is
-mounted. Options:
+Options:
 
 - `READONLY` refuses memory writes, input and kills.
 - `NOREBOOT` refuses resets.
 
 The agent needs a 68020 or better and Kickstart 3.0 or newer. Without it,
 `amiga_run` still works through A314shd, and so do files and serial.
+
+A314shd comes from [erique/a314](https://github.com/erique/a314) (CC0); its
+source is in `amiga/a314shd`.
 
 ## Tools
 

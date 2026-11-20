@@ -2,6 +2,7 @@
 
 import base64
 import fcntl
+import socket
 import time
 import zlib
 
@@ -51,8 +52,23 @@ class AgentStart(Rig):
                                              self.a314d.amiga_connect(self.agent))
         out = self.tools.agent_start(wait=5)
         self.assertTrue(out["started"])
-        self.assertTrue((self.share_dir / ".tfmcp" / "tfdbgd").exists())
+        for name in ("tfdbgd", "A314shd", "Install"):
+            self.assertTrue((self.share_dir / ".tfmcp" / name).exists(), name)
         self.assertIn("run >NIL: PI0:.tfmcp/tfdbgd", self.shell.commands[-1])
+
+    def test_without_a314shd_points_to_install(self):
+        # a314d starts a314sh only when A314shd connects: nothing listens on its port
+        free = socket.socket()
+        free.bind(("127.0.0.1", 0))
+        config.A314SH_PORT = free.getsockname()[1]
+        free.close()
+        st = self.tools.amiga_status()
+        self.assertIn("A314shd isn't running", st["a314sh"])
+        self.assertTrue(any("Execute PI0:.tfmcp/Install" in hint for hint in st["hints"]))
+        self.assertFalse(any(hint.startswith("call agent_start") for hint in st["hints"]))
+        with self.assertRaisesRegex(ToolError, "Execute PI0:.tfmcp/Install"):
+            self.tools.agent_start(wait=1)
+        self.assertTrue((self.share_dir / ".tfmcp" / "Install").exists())
 
 
 class Running(Rig):

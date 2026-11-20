@@ -35,8 +35,11 @@ def run(command, timeout=30.0, host=None, port=None):
     try:
         sock = socket.create_connection((host or config.A314SH_HOST, port or config.A314SH_PORT), timeout=5)
     except OSError:
-        raise ShellError("the a314sh service is not reachable on the Pi "
-                         "(a314d not running, or a314sh missing from a314d.conf)") from None
+        # a314d starts the Pi side of a314sh only once A314shd on the Amiga
+        # connects, so a closed port nearly always means A314shd isn't running.
+        raise ShellError("A314shd isn't running on the Amiga (the a314sh service is not reachable "
+                         "on the Pi). Set it up once on the Amiga with: "
+                         + config.INSTALL_COMMAND) from None
     try:
         sock.settimeout(timeout)
         data = command.encode("latin-1", "replace")
@@ -54,7 +57,7 @@ def run(command, timeout=30.0, host=None, port=None):
             raise ShellError("the a314sh service closed the connection")
         text = body.decode("latin-1", "replace")
         if rc == FAILURE_RC and text.startswith("a314sh:"):
-            raise ShellError(text.strip() + " -- start it on the Amiga: run >NIL: A314shd")
+            raise ShellError(text.strip() + " -- set it up once on the Amiga with: " + config.INSTALL_COMMAND)
         return rc, text
     finally:
         sock.close()
