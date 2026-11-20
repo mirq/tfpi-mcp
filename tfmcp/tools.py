@@ -611,6 +611,23 @@ class Tools:
                         "ehb": bool(s["mode_id"] & screen.EHB_KEY) and not s["rtg"]})
         return {"screens": out}
 
+    def grab_lut8(self, s, x, y, w, h):
+        """RGB rows of an 8-bit RTG screen from its pen numbers and palette
+        (Picasso96's own RGB conversion of these screens has the wrong
+        colours). None when the agent can't (older agent): use RGB then."""
+        per = max(1, proto.MAX_CHUNK // w)
+        idx = []
+        for top in range(y, y + h, per):
+            n = min(per, y + h - top)
+            try:
+                data = self.bridge.grab(s["address"], x, top, w, n, proto.GRAB_LUT8)
+            except AgentError as error:
+                if not idx and error.status in (proto.ST_BAD_REQUEST, proto.ST_UNSUPPORTED):
+                    return None
+                raise ToolError(str(error)) from None
+            idx += [data[i * w:(i + 1) * w] for i in range(n)]
+        return screen.indices_to_rgb(idx, s["palette"], 0, 8)
+
     def screenshot(self, screen_index=0, address=None, region=None, aspect=True, max_width=1024, save=True):
         self.need_agent()
         screens = self.call(self.bridge.screens)
@@ -633,7 +650,12 @@ class Tools:
             x, y, w, h = (int(v) for v in region)
             if x < 0 or y < 0 or w <= 0 or h <= 0 or x + w > width or y + h > height:
                 raise ToolError(f"region must lie inside {width}x{height}")
-        if s["rtg"]:
+        rows = None
+        if s["rtg"] and s["bits_per_pixel"] == 8 and s["pixel_format"] == proto.PIXFMT_LUT8 and s["palette"]:
+            rows = self.grab_lut8(s, x, y, w, h)
+        if rows is not None:
+            pass
+        elif s["rtg"]:
             per = max(1, proto.MAX_CHUNK // (w * 3))
             rows = []
             for top in range(y, y + h, per):

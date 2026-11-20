@@ -1,5 +1,6 @@
-/* Screens: the list, and pixels for screenshots (planar rows, or RGB from
- * cybergraphics.library for RTG screens). The Pi turns them into PNGs. */
+/* Screens: the list, and pixels for screenshots (planar rows, RGB from
+ * cybergraphics.library for RTG screens, or the raw pen bytes of 8-bit RTG
+ * screens). The Pi turns them into PNGs. */
 
 #include <exec/types.h>
 #include <exec/memory.h>
@@ -9,6 +10,7 @@
 #include <intuition/intuition.h>
 #include <intuition/intuitionbase.h>
 #include <intuition/screens.h>
+#include <utility/tagitem.h>
 
 #include <proto/exec.h>
 #include <proto/graphics.h>
@@ -25,6 +27,9 @@ static BOOL cgx_tried;
 #define CYBRMATTR_BPPIX         0x80000002
 #define CYBRMATTR_ISCYBERGFX    0x80000008
 #define RECTFMT_RGB             0
+#define PIXFMT_LUT8             0
+#define LBMI_BYTESPERROW        0x84001006
+#define LBMI_BASEADDRESS        0x84001007
 
 #define GetCyberMapAttr(bm, attr) \
     LP2(96, ULONG, GetCyberMapAttr, struct BitMap *, bm, a0, ULONG, attr, d0, , CyberGfxBase)
@@ -32,6 +37,11 @@ static BOOL cgx_tried;
     LP10(120, ULONG, ReadPixelArray, APTR, dst, a0, UWORD, dx, d0, UWORD, dy, d1, UWORD, dmod, d2, \
          struct RastPort *, rp, a1, UWORD, sx, d3, UWORD, sy, d4, UWORD, w, d5, UWORD, h, d6, \
          UBYTE, fmt, d7, , CyberGfxBase)
+
+#define LockBitMapTagList(bm, tags) \
+    LP2(168, APTR, LockBitMapTagList, APTR, bm, a0, struct TagItem *, tags, a1, , CyberGfxBase)
+#define UnLockBitMap(handle) \
+    LP1NR(174, UnLockBitMap, APTR, handle, a0, , CyberGfxBase)
 
 static void open_cgx(void)
 {
@@ -118,15 +128,17 @@ UBYTE rq_screens(struct Rd *r, struct Buf *out)
     return ST_OK;
 }
 
-/* u32 screen, u16 x, u16 y, u16 w, u16 h, u8 format (0 planar, 1 RGB)
+/* u32 screen, u16 x, u16 y, u16 w, u16 h, u8 format (0 planar, 1 RGB, 2 LUT8)
  * planar: x must be a multiple of 16; for each row, for each plane, (w + 15) / 16 * 2 bytes
- * RGB: w * h * 3 bytes */
+ * RGB: w * h * 3 bytes
+ * LUT8 (8-bit RTG screens): w * h pen numbers. Picasso96 converts such
+ * screens to RGB with the wrong colours, so the Pi maps them with the palette. */
 UBYTE rq_grab(struct Rd *r, struct Buf *out)
 {
     struct Screen *s = (struct Screen *)rd_u32(r);
     ULONG x = rd_u16(r), y = rd_u16(r), w = rd_u16(r), h = rd_u16(r);
     UBYTE fmt = rd_u8(r);
-    if (r->bad || !w || !h || w > 8192 || h > 8192 || fmt > 1)
+    if (r->bad || !w || !h || w > 8192 || h > 8192 || fmt > 2)
         return ST_BAD_REQUEST;
     open_cgx();
     /* size before allocating; both factors are bounded, so no overflow */
@@ -141,6 +153,32 @@ UBYTE rq_grab(struct Rd *r, struct Buf *out)
     struct BitMap *bm = s->RastPort.BitMap;
     if (x + w > (ULONG)s->Width || y + h > (ULONG)s->Height) {
         st = ST_BAD_ADDRESS;
+        goto done;
+    }
+    if (fmt == 2) {
+        if (!is_rtg(bm) || GetCyberMapAttr(bm, CYBRMATTR_PIXFMT) != PIXFMT_LUT8
+                || GetCyberMapAttr(bm, CYBRMATTR_BPPIX) != 1) {
+            st = ST_UNSUPPORTED;
+            goto done;
+        }
+        ULONG size = w * h;
+        if (size > MAX_CHUNK || !(dst = buf_reserve(out, size))) {
+            st = size > MAX_CHUNK ? ST_BAD_REQUEST : ST_NO_MEMORY;
+            goto done;
+        }
+        ULONG base = 0, bpr = 0;
+        struct TagItem tags[] = {{LBMI_BASEADDRESS, (ULONG)&base}, {LBMI_BYTESPERROW, (ULONG)&bpr},
+                                 {TAG_DONE, 0}};
+        APTR handle = LockBitMapTagList(bm, tags);
+        if (!handle) {
+            st = ST_UNSUPPORTED;
+            goto done;
+        }
+        if (!base || bpr < x + w)
+            st = ST_UNSUPPORTED;
+        for (ULONG row = 0; row < h && st == ST_OK; row++, dst += w)
+            CopyMem((APTR)(base + (y + row) * bpr + x), dst, w);
+        UnLockBitMap(handle);
         goto done;
     }
     if (fmt == 1) {
