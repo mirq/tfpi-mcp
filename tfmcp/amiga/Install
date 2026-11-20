@@ -1,0 +1,32 @@
+.KEY dummy
+; tfpi-mcp: run once on the Amiga with
+;   Execute PI0:.tfmcp/Install
+; Copies A314shd to C:, starts it from S:User-Startup at every boot and
+; starts it and the agent tfdbgd now. A314shd waits for the Pi by itself,
+; so the boot does not touch PI0:. The agent is started by agent_start.
+FAILAT 21
+Copy PI0:.tfmcp/A314shd C:A314shd QUIET
+IF WARN
+  Echo "Couldn't copy PI0:.tfmcp/A314shd to C:"
+  Quit 20
+ENDIF
+Protect C:A314shd +rwed QUIET
+IF NOT EXISTS S:User-Startup
+  Echo >S:User-Startup ";"
+ENDIF
+Search S:User-Startup "C:A314shd" QUIET
+IF WARN
+  Echo >>S:User-Startup "Run >NIL: C:A314shd"
+  Echo "Added A314shd to S:User-Startup"
+ELSE
+  Echo "A314shd is already in S:User-Startup"
+ENDIF
+Status >NIL: COMMAND=C:A314shd
+IF WARN
+  Run >NIL: C:A314shd
+  Echo "A314shd started"
+ELSE
+  Echo "A314shd is already running"
+ENDIF
+Run >NIL: PI0:.tfmcp/tfdbgd
+Echo "Agent tfdbgd started. Done."

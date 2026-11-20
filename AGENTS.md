@@ -22,6 +22,10 @@ assembly.
   - `hunk.py`, `elf.py`, `symbols.py`, `backtrace.py`, `disasm.py` (objdump),
     `screen.py` (planar/HAM/EHB/RTG to PNG), `keys.py`, `crash.py`.
   - `amiga/tfdbgd`: the prebuilt agent binary (committed).
+  - `amiga/A314shd`: a314's Amiga-side shell daemon, prebuilt from
+    `amiga/a314shd` (unmodified a314 sources, CC0). `amiga/Install`: the
+    AmigaDOS script that sets it up in `S:User-Startup`. `agent_start` and
+    `install.sh` copy all three to `PI0:.tfmcp`.
 - `amiga/tfdbgd/`: agent sources. `tfdbgd.h` documents the protocol, and
   `tfmcp/proto.py` mirrors it. Change both together and bump `PROTO_VERSION`.
 - `install.sh`: two-stage, idempotent installer (curl | sudo bash).
@@ -43,6 +47,7 @@ assembly.
 
 - Build with `make -C amiga/tfdbgd`. It needs the bebbo toolchain
   (`PREFIX=~/amiga-gcc16`), and writes `tfmcp/amiga/tfdbgd`.
+- `make -C amiga/a314shd` builds `tfmcp/amiga/A314shd` the same way.
 - Commit the rebuilt binary with the sources.
   `test_committed_binary_matches_source` fails when they differ. The build is
   deterministic.

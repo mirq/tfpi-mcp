@@ -87,7 +87,9 @@ share=$(python3 -c 'import json,sys; d=json.load(open(sys.argv[1]))["devices"]; 
 if [ -d "$share" ]; then
 	install -d -o "$PI_USER" -g "$PI_GROUP" "$share/.tfmcp"
 	install -m755 -o "$PI_USER" -g "$PI_GROUP" "$self_dir/tfmcp/amiga/tfdbgd" "$share/.tfmcp/tfdbgd"
-	echo "Agent: PI0:.tfmcp/tfdbgd ($share/.tfmcp/tfdbgd)"
+	install -m755 -o "$PI_USER" -g "$PI_GROUP" "$self_dir/tfmcp/amiga/A314shd" "$share/.tfmcp/A314shd"
+	install -m644 -o "$PI_USER" -g "$PI_GROUP" "$self_dir/tfmcp/amiga/Install" "$share/.tfmcp/Install"
+	echo "Agent: PI0:.tfmcp/tfdbgd ($share/.tfmcp/tfdbgd), with A314shd and the Install script"
 else
 	echo "WARNING: a314fs share $share not found; agent_start will copy the agent once it exists"
 fi
@@ -115,7 +117,9 @@ HTTP instead of SSH (bearer token):
   sudo tfpi-mcp config set http.enabled true && sudo systemctl restart tfpi-mcp
   tfpi-mcp config token        # then use http://$host.local:8765/mcp
 
-On the Amiga the agent starts with the agent_start tool, or by hand:
+Once, on the Amiga (starts A314shd at every boot, so agent_start works):
+  Execute PI0:.tfmcp/Install
+Or start just the agent by hand:
   run >NIL: PI0:.tfmcp/tfdbgd
 Check everything: tfpi-mcp call amiga_status
 EOF

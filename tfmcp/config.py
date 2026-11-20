@@ -31,6 +31,10 @@ SYSTEMCTL = _env("SYSTEMCTL", "systemctl")
 A314_SERVICE = _env("A314_SERVICE", "a314d")
 
 AGENT_BINARY = Path(_env("AGENT_BINARY", str(PACKAGE_DIR / "amiga" / "tfdbgd")))
+# copied next to the agent: A314shd (a314's Amiga-side shell daemon) and the
+# one-time setup script that starts it from S:User-Startup
+AMIGA_FILES = ("tfdbgd", "A314shd", "Install")
+INSTALL_COMMAND = "Execute PI0:.tfmcp/Install"
 SHARE_DIR_NAME = ".tfmcp"           # on PI0: -- the agent, job output, screenshots
 
 DEFAULTS = {
